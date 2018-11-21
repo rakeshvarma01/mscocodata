@@ -1,6 +1,10 @@
 # mscocodata
 Scripts for converting annotations into MS COCO JSON format.
 
+## Background
+
+* [MS COCO data format](http://cocodataset.org/#format-data)
+
 ## Installation
 
 * install virtual environment (eg for Python 3.5)
