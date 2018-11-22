@@ -23,6 +23,9 @@ import argparse
 import os
 import traceback
 import logging
+import datetime
+import json
+from collections import OrderedDict
 import PIL.Image as pil
 from adams.report import read_objects, determine_labels, fix_labels
 from adams.report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
@@ -33,8 +36,106 @@ logging.basicConfig()
 logger = logging.getLogger("adams.convert")
 logger.setLevel(logging.INFO)
 
+def image_for_report(report_file):
+    """
+    Determines the file name for the report file.
 
-def convert(input_dir, input_files, output_file, mappings=None, regexp=None, labels=None, verbose=False):
+    :param report_file: the report file to get the associated image for
+    :type report_file: str
+    :return: the image filename, None if not present
+    :rtype: str
+    """
+    jpg_lower = report_file.replace(REPORT_EXT, ".jpg")
+    jpg_upper = report_file.replace(REPORT_EXT, ".JPG")
+    png_lower = report_file.replace(REPORT_EXT, ".png")
+    png_upper = report_file.replace(REPORT_EXT, ".PNG")
+    if os.path.exists(jpg_lower):
+        return jpg_lower
+    elif os.path.exists(jpg_upper):
+        return jpg_upper
+    elif os.path.exists(png_lower):
+        return png_lower
+    elif os.path.exists(png_upper):
+        return png_upper
+    else:
+        return None
+
+
+def add_images(images, report_files, verbose=False):
+    """
+    Adds all the images to the images list.
+
+    :param images: the list to append to
+    :type images: list
+    :param report_files: the list of report files (strings) to use for determining the images
+    :type report_files: list
+    :param verbose: whether to be verbose in the output
+    :type verbose: bool
+    """
+    captured = datetime.datetime.now().isoformat()
+    for img_id, report_file in enumerate(report_files, start=1):
+        img_file = image_for_report(report_file)
+        if img_file is None:
+            continue
+        if verbose:
+            logger.info('Processing image: %s' % img_file)
+        img = pil.open(img_file)
+        data = OrderedDict()
+        data['id'] = img_id
+        data['width'] = img.size[0]
+        data['height'] = img.size[1]
+        data['filename'] = os.path.basename(img_file)
+        data['license'] = 1
+        data['flickr_url'] = ''
+        data['coco_url'] = ''
+        data['date_captured'] = captured
+        images.append(data)
+
+
+def add_annotations(annotations, report_files, mappings=None, labels=None, verbose=False):
+    """
+    Adds all the objects to the annotations list.
+
+    :param annotations: the list to append to
+    :type annotations: list
+    :param report_files: the list of report files (strings) to use for determining the images
+    :type report_files: list
+    :param mappings: the label mappings for replacing labels (key: old label, value: new label)
+    :type mappings: dict
+    :param labels: dictionary of label names as keys and category IDs as value
+    :type labels: dict
+    :param verbose: whether to be verbose in the output
+    :type verbose: bool
+    """
+    obj_id = 0
+    for img_id, report_file in enumerate(report_files, start=1):
+        img_file = image_for_report(report_file)
+        if img_file is None:
+            continue
+        objects = read_objects(report_file, verbose=verbose)
+        if mappings is not None:
+            fix_labels(objects, mappings)
+        for obj_key in objects:
+            obj_id += 1
+            obj = objects[obj_key]
+            if SUFFIX_TYPE not in obj:
+                obj[SUFFIX_TYPE] = DEFAULT_LABEL
+            if obj[SUFFIX_TYPE] in labels:
+                data = OrderedDict()
+                data['id'] = obj_id
+                data['image_id'] = img_id
+                data['category_id'] = labels[obj[SUFFIX_TYPE]]
+                data['segmentation'] = [
+                    obj[SUFFIX_X], obj[SUFFIX_Y],
+                    obj[SUFFIX_X] + obj[SUFFIX_WIDTH] - 1, obj[SUFFIX_Y] + obj[SUFFIX_HEIGHT] - 1
+                ]
+                data['area'] = float(obj[SUFFIX_WIDTH] * obj[SUFFIX_HEIGHT])
+                data['bbox'] = [obj[SUFFIX_X], obj[SUFFIX_Y], obj[SUFFIX_WIDTH], obj[SUFFIX_HEIGHT]]
+                data['iscrowd'] = 0
+                annotations.append(data)
+
+
+def convert(input_dir, input_files, output_file, mappings=None, regexp=None, labels=None, pretty_print=False, verbose=False):
     """
     Converts the images and annotations (.report) files into TFRecords.
 
@@ -50,10 +151,69 @@ def convert(input_dir, input_files, output_file, mappings=None, regexp=None, lab
     :type regexp: str
     :param labels: the predefined list of labels to use
     :type labels: list
+    :param pretty_print: whether to generate pretty-printed JSON output
+    :type pretty_print: bool
     :param verbose: whether to have a more verbose record generation
     :type verbose: bool
     """
-    pass
+
+    if labels is None:
+        labels = determine_labels(input_dir=input_dir, input_files=input_files, mappings=mappings,
+                                  regexp=regexp, verbose=verbose)
+    label_indices = dict()
+    for i, l in enumerate(labels):
+        label_indices[l] = i+1
+
+    if verbose:
+        logging.info("labels considered: %s", labels)
+
+    # determine files
+    if input_dir is not None:
+        report_files = list()
+        for subdir, dirs, files in os.walk(input_dir):
+            for f in files:
+                if f.endswith(REPORT_EXT):
+                    report_files.append(os.path.join(input_dir, subdir, f))
+    else:
+        report_files = input_files[:]
+
+    # compile json
+    coco = OrderedDict()
+
+    info = OrderedDict()
+    info['year'] = datetime.date.today().year
+    info['version'] = str(datetime.datetime.now())
+    info['description'] = 'ADAMS annotations'
+    info['contributor'] = 'ADAMS'
+    info['url'] = 'https://adams.cms.waikato.ac.nz/'
+    info['date_created'] = datetime.datetime.now().isoformat()
+    coco['info'] = info
+
+    license = OrderedDict()
+    license['id'] = 1
+    license['name'] = 'proprietary'
+    license['url'] = ''
+    coco['licenses'] = list()
+    coco['licenses'].append(license)
+
+    coco['categories'] = list()
+    for l in label_indices:
+        cat = OrderedDict()
+        cat['id'] = label_indices[l]
+        cat['name'] = l
+        cat['supercategory'] = 'shape'
+        coco['categories'].append(cat)
+    coco['images'] = list()
+    coco['annotations'] = list()
+    add_images(coco['images'], report_files, verbose=verbose)
+    add_annotations(coco['annotations'], report_files, labels=label_indices, verbose=verbose)
+
+    # save to file
+    with open(output_file, 'w') as outfile:
+        if pretty_print:
+            json.dump(coco, outfile, indent=2)
+        else:
+            json.dump(coco, outfile)
 
 
 def main():
@@ -82,6 +242,9 @@ def main():
     parser.add_argument(
         "-l", "--labels", metavar="label1,label2,...", dest="labels", required=False,
         help="comma-separated list of labels to use", default="")
+    parser.add_argument(
+        "-p", "--pretty_print", action="store_true", dest="pretty_print", required=False,
+        help="whether to generate pretty-printed JSON")
     parser.add_argument(
         "-v", "--verbose", action="store_true", dest="verbose", required=False,
         help="whether to be more verbose when generating the records")
@@ -118,12 +281,9 @@ def main():
         labels = list(parsed.labels.split(","))
         logger.info("labels: " + str(labels))
 
-    if parsed.verbose:
-        logger.info("sharding off" if parsed.shards <= 1 else "# shards: " + str(parsed.shards))
-
     convert(
         input_dir=input_dir, input_files=input_files, output_file=parsed.output, regexp=parsed.regexp,
-        mappings=mappings, labels=labels, verbose=parsed.verbose)
+        mappings=mappings, labels=labels, pretty_print=parsed.pretty_print, verbose=parsed.verbose)
 
 
 if __name__ == "__main__":
