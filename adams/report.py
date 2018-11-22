@@ -45,6 +45,12 @@ SUFFIX_X = "x"
 SUFFIX_Y = "y"
 """ the suffix for the y coordinate. """
 
+SUFFIX_POLY_X = "poly_x"
+""" the suffix for the polygon x coordinates. """
+
+SUFFIX_POLY_Y = "poly_y"
+""" the suffix for the polygon y coordinates. """
+
 SUFFIX_DATATYPE = "DataType"
 """ the suffix for the data type of a property in the report. """
 
