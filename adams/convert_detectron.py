@@ -29,7 +29,7 @@ from collections import OrderedDict
 import PIL.Image as pil
 from adams.report import read_objects, determine_labels, fix_labels
 from adams.report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
-from adams.report import PREFIX_OBJECT, DEFAULT_LABEL
+from adams.report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
 
 # logging setup
 logging.basicConfig()
@@ -92,7 +92,7 @@ def add_images(images, report_files, verbose=False):
         images.append(data)
 
 
-def add_annotations(annotations, report_files, mappings=None, labels=None, verbose=False):
+def add_annotations(annotations, report_files, mappings=None, labels=None, polygon=False, verbose=False):
     """
     Adds all the objects to the annotations list.
 
@@ -104,6 +104,8 @@ def add_annotations(annotations, report_files, mappings=None, labels=None, verbo
     :type mappings: dict
     :param labels: dictionary of label names as keys and category IDs as value
     :type labels: dict
+    :param polygon: whether to use polygon information instead of bounding box for output
+    :type polygon: bool
     :param verbose: whether to be verbose in the output
     :type verbose: bool
     """
@@ -125,17 +127,38 @@ def add_annotations(annotations, report_files, mappings=None, labels=None, verbo
                 data['id'] = obj_id
                 data['image_id'] = img_id
                 data['category_id'] = labels[obj[SUFFIX_TYPE]]
-                data['segmentation'] = [
-                    obj[SUFFIX_X], obj[SUFFIX_Y],
-                    obj[SUFFIX_X] + obj[SUFFIX_WIDTH] - 1, obj[SUFFIX_Y] + obj[SUFFIX_HEIGHT] - 1
+                if polygon and (SUFFIX_POLY_X in obj) and (SUFFIX_POLY_Y in obj):
+                    poly_x = [int(x) for x in obj[SUFFIX_POLY_X].split(',')]
+                    poly_y = [int(y) for y in obj[SUFFIX_POLY_Y].split(',')]
+                    xmin = min(poly_x)
+                    xmax = max(poly_x)
+                    ymin = min(poly_y)
+                    ymax = max(poly_y)
+                    data['segmentation'] = list()
+                    for i in range(len(poly_x)):
+                        data['segmentation'].append(poly_x[i])
+                        data['segmentation'].append(poly_y[i])
+                else:
+                    xmin = obj[SUFFIX_X]
+                    xmax = obj[SUFFIX_X] + obj[SUFFIX_WIDTH] - 1
+                    ymin = obj[SUFFIX_Y]
+                    ymax = obj[SUFFIX_Y] + obj[SUFFIX_HEIGHT] - 1
+                    data['segmentation'] = [
+                        xmin, ymin,
+                        xmax, ymin,
+                        xmax, ymax,
+                        xmin, ymax,
                 ]
-                data['area'] = float(obj[SUFFIX_WIDTH] * obj[SUFFIX_HEIGHT])
-                data['bbox'] = [obj[SUFFIX_X], obj[SUFFIX_Y], obj[SUFFIX_WIDTH], obj[SUFFIX_HEIGHT]]
+                width = xmax - xmin + 1
+                height = ymax - ymin + 1
+                data['area'] = float(width * height)
+                data['bbox'] = [xmin, ymin, width, height]
                 data['iscrowd'] = 0
                 annotations.append(data)
 
 
-def convert(input_dir, input_files, output_file, mappings=None, regexp=None, labels=None, pretty_print=False, verbose=False):
+def convert(input_dir, input_files, output_file, mappings=None, regexp=None, labels=None, polygon=False,
+            pretty_print=False, verbose=False):
     """
     Converts the images and annotations (.report) files into TFRecords.
 
@@ -151,6 +174,8 @@ def convert(input_dir, input_files, output_file, mappings=None, regexp=None, lab
     :type regexp: str
     :param labels: the predefined list of labels to use
     :type labels: list
+    :param polygon: whether to use polygon information instead of bounding box for output
+    :type polygon: bool
     :param pretty_print: whether to generate pretty-printed JSON output
     :type pretty_print: bool
     :param verbose: whether to have a more verbose record generation
@@ -206,7 +231,7 @@ def convert(input_dir, input_files, output_file, mappings=None, regexp=None, lab
     coco['images'] = list()
     coco['annotations'] = list()
     add_images(coco['images'], report_files, verbose=verbose)
-    add_annotations(coco['annotations'], report_files, labels=label_indices, verbose=verbose)
+    add_annotations(coco['annotations'], report_files, labels=label_indices, polygon=polygon, verbose=verbose)
 
     # save to file
     with open(output_file, 'w') as outfile:
@@ -242,6 +267,9 @@ def main():
     parser.add_argument(
         "-l", "--labels", metavar="label1,label2,...", dest="labels", required=False,
         help="comma-separated list of labels to use", default="")
+    parser.add_argument(
+        "-g", "--polygon", action="store_true", dest="polygon", required=False,
+        help="output polygon (if available) instead of bounding box")
     parser.add_argument(
         "-p", "--pretty_print", action="store_true", dest="pretty_print", required=False,
         help="whether to generate pretty-printed JSON")
@@ -283,7 +311,8 @@ def main():
 
     convert(
         input_dir=input_dir, input_files=input_files, output_file=parsed.output, regexp=parsed.regexp,
-        mappings=mappings, labels=labels, pretty_print=parsed.pretty_print, verbose=parsed.verbose)
+        mappings=mappings, labels=labels, polygon=parsed.polygon, pretty_print=parsed.pretty_print,
+        verbose=parsed.verbose)
 
 
 if __name__ == "__main__":
