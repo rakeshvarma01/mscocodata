@@ -27,9 +27,9 @@ import datetime
 import json
 from collections import OrderedDict
 import PIL.Image as pil
-from adams.report import read_objects, determine_labels, fix_labels
-from adams.report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
-from adams.report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
+from report import read_objects, determine_labels, fix_labels
+from report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
+from report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
 
 # logging setup
 logging.basicConfig()
@@ -42,7 +42,7 @@ def image_for_report(report_file):
 
     :param report_file: the report file to get the associated image for
     :type report_file: str
-    :return: the image filename, None if not present
+    :return: the image file_name, None if not present
     :rtype: str
     """
     jpg_lower = report_file.replace(REPORT_EXT, ".jpg")
@@ -84,7 +84,7 @@ def add_images(images, report_files, verbose=False):
         data['id'] = img_id
         data['width'] = img.size[0]
         data['height'] = img.size[1]
-        data['filename'] = os.path.basename(img_file)
+        data['file_name'] = os.path.basename(img_file)
         data['license'] = 1
         data['flickr_url'] = ''
         data['coco_url'] = ''
@@ -138,17 +138,18 @@ def add_annotations(annotations, report_files, mappings=None, labels=None, polyg
                     for i in range(len(poly_x)):
                         data['segmentation'].append(poly_x[i])
                         data['segmentation'].append(poly_y[i])
+                    data['segmentation'] = [data['segmentation']]
                 else:
                     xmin = obj[SUFFIX_X]
                     xmax = obj[SUFFIX_X] + obj[SUFFIX_WIDTH] - 1
                     ymin = obj[SUFFIX_Y]
                     ymax = obj[SUFFIX_Y] + obj[SUFFIX_HEIGHT] - 1
-                    data['segmentation'] = [
+                    data['segmentation'] = [[
                         xmin, ymin,
                         xmax, ymin,
                         xmax, ymax,
                         xmin, ymax,
-                ]
+                ]]
                 width = xmax - xmin + 1
                 height = ymax - ymin + 1
                 data['area'] = float(width * height)
