@@ -27,9 +27,9 @@ import datetime
 import json
 from collections import OrderedDict
 import PIL.Image as pil
-from report import read_objects, determine_labels, fix_labels
-from report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
-from report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
+from adams.report import read_objects, determine_labels, fix_labels
+from adams.report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
+from adams.report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
 
 # logging setup
 logging.basicConfig()
