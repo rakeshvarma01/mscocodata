@@ -77,26 +77,29 @@ def read_objects(report_file, verbose=False):
 
     result = dict()
 
+    if verbose:
+        logger.info("%s" % report_file)
     with open(report_file, 'r') as rf:
         props = javaproperties.load(rf)
         for k in props.keys():
             if k.startswith(PREFIX_OBJECT):
                 idx = k[len(PREFIX_OBJECT):]
-                idx = idx[0:idx.index(".")]
-                if idx not in result:
-                    result[idx] = dict()
-                subkey = k[len(PREFIX_OBJECT + idx) + 1:]
-                if subkey.endswith(SUFFIX_DATATYPE):
-                    continue
-                value = props[k]
-                # try guess type
-                if (value.lower() == "true") or (value.lower() == "false"):
-                    result[idx][subkey] = bool(props[k])
-                else:
-                    try:
-                        result[idx][subkey] = float(props[k])
-                    except:
-                        result[idx][subkey] = props[k]
+                if "." in idx:
+                    idx = idx[0:idx.index(".")]
+                    if idx not in result:
+                        result[idx] = dict()
+                    subkey = k[len(PREFIX_OBJECT + idx) + 1:]
+                    if subkey.endswith(SUFFIX_DATATYPE):
+                        continue
+                    value = props[k]
+                    # try guess type
+                    if (value.lower() == "true") or (value.lower() == "false"):
+                        result[idx][subkey] = bool(props[k])
+                    else:
+                        try:
+                            result[idx][subkey] = float(props[k])
+                        except:
+                            result[idx][subkey] = props[k]
 
     if verbose:
         logger.info("%s: %s" % (report_file, result))
