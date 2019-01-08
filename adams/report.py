@@ -1,5 +1,5 @@
 """
-Copyright 2018 University of Waikato, Hamilton, NZ
+Copyright 2018-2019 University of Waikato, Hamilton, NZ
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ DEFAULT_LABEL = "object"
 
 # logging setup
 logging.basicConfig()
-logger = logging.getLogger("tfrecords.adams.report")
+logger = logging.getLogger("mscocodata.adams.report")
 logger.setLevel(logging.INFO)
 
 
