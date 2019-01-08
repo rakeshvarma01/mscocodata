@@ -1,5 +1,5 @@
 """
-Copyright 2018 University of Waikato, Hamilton, NZ
+Copyright 2018-2019 University of Waikato, Hamilton, NZ
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -27,13 +27,13 @@ import datetime
 import json
 from collections import OrderedDict
 import PIL.Image as pil
-from adams.report import read_objects, determine_labels, fix_labels
-from adams.report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
-from adams.report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
+from adams2detectron.report import read_objects, determine_labels, fix_labels
+from adams2detectron.report import SUFFIX_TYPE, SUFFIX_X, SUFFIX_Y, SUFFIX_WIDTH, SUFFIX_HEIGHT, REPORT_EXT
+from adams2detectron.report import SUFFIX_POLY_X, SUFFIX_POLY_Y, PREFIX_OBJECT, DEFAULT_LABEL
 
 # logging setup
 logging.basicConfig()
-logger = logging.getLogger("adams.convert")
+logger = logging.getLogger("adams2detectron.convert")
 logger.setLevel(logging.INFO)
 
 def image_for_report(report_file):

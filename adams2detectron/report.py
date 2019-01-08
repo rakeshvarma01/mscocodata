@@ -59,7 +59,7 @@ DEFAULT_LABEL = "object"
 
 # logging setup
 logging.basicConfig()
-logger = logging.getLogger("mscocodata.adams.report")
+logger = logging.getLogger("adams2detectron.report")
 logger.setLevel(logging.INFO)
 
 
