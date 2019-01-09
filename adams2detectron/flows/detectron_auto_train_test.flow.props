@@ -1,0 +1,6 @@
+#Wed Jan 09 12:10:07 NZDT 2019
+output_dir=/Scratch/habdelqa/detectron-venv/detectron/output/sperms/red_stained
+config_yaml=/Scratch/habdelqa/detectron-venv/detectron/configs/sperms/red_stained.yaml
+datasets_dir=/Scratch/habdelqa/detectron-venv/detectron/detectron/datasets/data/sperms/red_stained
+python_script_dir=/Scratch/habdelqa/detectron-venv/detectron
+python_exec=/Scratch/habdelqa/detectron-venv/bin/python2.7

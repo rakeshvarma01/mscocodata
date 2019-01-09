@@ -1,0 +1,131 @@
+# Project: adams
+# Date: 2019-01-08 12:43:13
+# User: habdelqa
+# Charset: UTF-8
+# Modules: adams-cntk,adams-compress,adams-core,adams-event,adams-imaging,adams-imaging-boofcv,adams-latex,adams-meta,adams-ml,adams-net,adams-pdf,adams-python,adams-random,adams-rats,adams-rest,adams-spreadsheet,adams-tensorflow,adams-visualstats,adams-webservice
+#
+adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
+ adams.flow.standalone.CallableActors
+  adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
+  adams.flow.control.SubProcess -name "copy files"
+   adams.flow.transformer.ArrayToSequence
+   adams.flow.transformer.SetVariable -var-name image_file
+   adams.flow.transformer.Convert -conversion "adams.data.conversion.ReplaceFileExtension -extension .report -use-forward-slashes true"
+   adams.flow.transformer.SetVariable -name "SetVariable (2)" -var-name report_file
+   adams.flow.control.Trigger -name "Copy Image"
+    adams.flow.source.Variable -var-name image_file -conversion adams.data.conversion.StringToString
+    adams.flow.transformer.CopyFile -target-dir @{target_dir}
+   adams.flow.control.Trigger -name "Copy Report"
+    adams.flow.source.Variable -var-name report_file -conversion adams.data.conversion.StringToString
+    adams.flow.transformer.CopyFile -target-dir @{target_dir}
+ adams.flow.standalone.SetVariable -var-name restore_file -var-value @{flow_filename_long}.props -expand-value true
+ adams.flow.source.Start
+ adams.flow.control.Trigger -name "prompt user"
+  adams.flow.source.EnterManyValues -stop-if-canceled true -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name image_dir -display \"Image Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name output_dir -display \"Output Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_folds -display \"Number of Folds\" -help \"less than 2 will perform leave one out CV\" -type INTEGER -default-value 10" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_rows -display \"Number of Rows\" -help \"number of rows to split image in\" -type INTEGER -default-value 3" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_cols -display \"Number of Columns\" -help \"number of columns to split image in\" -type INTEGER -default-value 3" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name overlap -display \"Overlap in Pixels\" -help \"How many pixels to overlap?\" -type INTEGER -default-value 50" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_exec -display \"Python Executable\" -help \"Python executable to use for executing the mscoco script\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_script_dir -display \"MSCOCO Script Directory\" -help \"Top level directroy of script for converting ADAMS reports to json\" -type DIRECTORY_ABSOLUTE -default-value ." -output-type MAP -restoration-enabled true -restoration-file @{restore_file}
+  adams.flow.transformer.MapToVariables
+  adams.flow.control.Trigger -name "split dir"
+   adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.AppendName -suffix split -use-forward-slashes true
+   adams.flow.transformer.Convert -conversion "adams.data.conversion.MultiConversion -conversion \"adams.data.conversion.StringToFile -placeholderfile true\" -conversion \"adams.data.conversion.FileToString -absolute true -use-forward-slashes true\""
+   adams.flow.transformer.SetVariable -var-name split_dir
+  adams.flow.control.Trigger -name "datasets dir"
+   adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.AppendName -suffix datasets -use-forward-slashes true
+   adams.flow.transformer.Convert -conversion "adams.data.conversion.MultiConversion -conversion \"adams.data.conversion.StringToFile -placeholderfile true\" -conversion \"adams.data.conversion.FileToString -absolute true -use-forward-slashes true\""
+   adams.flow.transformer.SetVariable -var-name datasets_dir
+  adams.flow.control.Trigger -name "Python Script"
+   adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.AppendName -suffix adams/convert_detectron.py -use-forward-slashes true
+   adams.flow.transformer.SetVariable -var-name python_script
+ adams.flow.control.Trigger -name "Init Split Dir"
+  adams.flow.source.Variable -var-name split_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.MakeDir
+  adams.flow.control.Trigger -name "Remove Output"
+   adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{split_dir} -regexp .*"
+   adams.flow.transformer.DeleteFile
+ adams.flow.control.Trigger -name "Init Datasets Dir"
+  adams.flow.source.Variable -var-name datasets_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.MakeDir
+  adams.flow.control.Trigger -name "Remove Output"
+   adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalDirectorySearch -directory @{datasets_dir} -regexp .*"
+   adams.flow.transformer.DeleteFile
+ adams.flow.control.Trigger -name "Split Images"
+  adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{image_dir} -regexp .*\\\\.(jpg|png) -sorting SORT_BY_NAME"
+  adams.flow.control.Tee -name Progress
+   adams.flow.sink.Console
+  adams.flow.control.Tee -name "Extract File Name"
+   adams.flow.transformer.BaseName -remove-extensions true
+   adams.flow.transformer.SetVariable -name "Image File Name" -var-name image_filename
+  adams.flow.transformer.ImageFileReader -reader adams.data.io.input.JAIImageReader -load-meta-data true -meta-data-reader adams.data.io.input.DefaultSimpleReportReader
+  adams.flow.transformer.BufferedImageTransformer -transformer "adams.data.image.transformer.SubImages -generator \"adams.data.image.transformer.subimages.Grid -num-cols @{num_cols} -num-rows @{num_rows} -overlap-x @{overlap} -overlap-y @{overlap}\""
+  adams.flow.control.Tee -name "Get Count"
+   adams.flow.transformer.GetReportValue -field Object.count[N]
+   adams.flow.transformer.SetVariable -var-name object_count
+  adams.flow.control.Block -condition "adams.flow.condition.bool.Expression -expression \"@{object_count} < 1\""
+  adams.flow.control.Tee -name "Get Row"
+   adams.flow.transformer.GetReportValue -field Row[N]
+   adams.flow.transformer.Convert -conversion adams.data.conversion.DoubleToInt
+   adams.flow.transformer.SetVariable -var-name row
+  adams.flow.control.Tee -name "Get Column"
+   adams.flow.transformer.GetReportValue -field Column[N]
+   adams.flow.transformer.Convert -conversion adams.data.conversion.DoubleToInt
+   adams.flow.transformer.SetVariable -var-name col
+  adams.flow.control.Trigger -name "Image Output File Name"
+   adams.flow.source.CombineVariables -expression @{image_filename}-@{row}-@{col}.png -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.PrependDir -prefix @{split_dir}
+   adams.flow.transformer.SetVariable -var-name imgoutfile
+  adams.flow.control.Trigger -name "Report Output File Name"
+   adams.flow.source.CombineVariables -expression @{image_filename}-@{row}-@{col}.report -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.PrependDir -prefix @{split_dir}
+   adams.flow.transformer.SetVariable -var-name reportoutfile
+  adams.flow.control.Tee -name "save image"
+   adams.flow.sink.ImageFileWriter -output @{imgoutfile} -writer adams.data.io.output.JAIImageWriter
+  adams.flow.control.Tee -name "save report"
+   adams.flow.transformer.ReportFileWriter -writer adams.data.io.output.DefaultSimpleReportWriter -generator "adams.core.io.SimpleFixedFilenameGenerator -name @{reportoutfile}"
+ adams.flow.control.Trigger -name "Generate Datasets"
+  adams.flow.standalone.PythonEnvironment -python-path-env-var C:\\Users\\habdelqa\\Projects\\mscocodata -python-path-update-type REPLACE -python ${HOME}\Projects\mscocodata\venv\Scripts\python.exe
+  adams.flow.standalone.SetVariable -name "init fold" -var-name fold -var-value 0
+  adams.flow.standalone.SetVariable -name "train template" -var-name train_template -var-value "-i \\\"@{datasets_dir}/@{fold}/train\\\" -o \\\"@{datasets_dir}/@{fold}/annotations/annotations.json\\\""
+  adams.flow.standalone.SetVariable -name "test template" -var-name test_template -var-value "-i \\\"@{datasets_dir}/@{fold}/val\\\" -o \\\"@{datasets_dir}/@{fold}/val/annotations.json\\\""
+  adams.flow.source.FileSystemSearch -output-array true -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{split_dir} -regexp .*\\\\.png -sorting SORT_BY_NAME" -use-forward-slashes true
+  adams.flow.transformer.PrepareFileBasedDataset -preparation "adams.flow.transformer.preparefilebaseddataset.CrossValidation -num-folds @{num_folds}"
+  adams.flow.transformer.IncVariable -var-name fold
+  adams.flow.control.Trigger -name "Fold Info"
+   adams.flow.source.CombineVariables -expression "\\n--> fold: @{fold}\\n" -conversion adams.data.conversion.StringToString
+   adams.flow.sink.CallableSink -callable Display
+  adams.flow.control.Trigger -name "Generate Output Directroy Name"
+   adams.flow.source.Variable -var-name fold -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.PrependDir -prefix @{datasets_dir}
+   adams.flow.transformer.SetVariable -var-name fold_dir
+   adams.flow.transformer.MakeDir
+   adams.flow.control.Tee -name Annotations
+    adams.flow.transformer.AppendName -suffix annotations -use-forward-slashes true
+    adams.flow.transformer.MakeDir
+   adams.flow.control.Tee -name Train
+    adams.flow.transformer.AppendName -suffix train -use-forward-slashes true
+    adams.flow.transformer.MakeDir
+    adams.flow.transformer.SetVariable -var-name train_dir
+   adams.flow.control.Tee -name Val
+    adams.flow.transformer.AppendName -suffix val -use-forward-slashes true
+    adams.flow.transformer.MakeDir
+    adams.flow.transformer.SetVariable -var-name test_dir
+  adams.flow.control.ContainerValuePicker -name "Pick Train" -value Train
+   adams.flow.transformer.SetVariable -var-name target_dir -var-value @{train_dir}
+   adams.flow.transformer.CallableTransformer -callable "copy files"
+  adams.flow.control.ContainerValuePicker -name "Pick Test" -value Test
+   adams.flow.transformer.SetVariable -var-name target_dir -var-value @{test_dir}
+   adams.flow.transformer.CallableTransformer -callable "copy files"
+  adams.flow.control.Trigger -name "Generate Train Command"
+   adams.flow.source.Variable -var-name train_template -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.ExpandVariables
+   adams.flow.transformer.SetVariable -var-name train_options
+  adams.flow.control.Trigger -name "Generate Test Command"
+   adams.flow.source.Variable -var-name test_template -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.ExpandVariables
+   adams.flow.transformer.SetVariable -var-name test_options
+  adams.flow.control.Trigger -name "Execute Python (Train)"
+   adams.flow.source.PythonExec -output-type BOTH -prefix-stdout [OUT] -prefix-stderr [ERR] -script @{python_script} -script-options @{train_options}
+   adams.flow.sink.CallableSink -callable Display
+  adams.flow.control.Trigger -name "Execute Python (Test)"
+   adams.flow.source.PythonExec -output-type BOTH -prefix-stdout [OUT] -prefix-stderr [ERR] -script @{python_script} -script-options @{test_options}
+   adams.flow.sink.CallableSink -callable Display

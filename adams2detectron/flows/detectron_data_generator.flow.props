@@ -1,0 +1,9 @@
+#Tue Jan 08 12:43:19 NZDT 2019
+output_dir=C\:\\Users\\habdelqa\\Desktop\\sperms\\images\\Red stained\\Original_annotated\\output
+overlap=50
+num_rows=3
+num_cols=3
+num_folds=1
+python_script_dir=C\:\\Users\\habdelqa\\Projects\\mscocodata
+python_exec=C\:\\Program Files (x86)\\Python36-32\\python.exe
+image_dir=C\:\\Users\\habdelqa\\Desktop\\sperms\\images\\Red stained\\Original_annotated\\original
