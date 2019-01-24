@@ -1,25 +1,81 @@
 # Project: adams
-# Date: 2019-01-09 12:09:05
+# Date: 2019-01-24 12:27:17
 # User: habdelqa
 # Charset: UTF-8
-# Modules: adams-access,adams-audio,adams-cntk,adams-cntk-weka,adams-compress,adams-core,adams-cqengine,adams-event,adams-excel,adams-ffmpeg,adams-gnuplot,adams-groovy,adams-groovy-webservice,adams-heatmap,adams-image-webservice,adams-imaging,adams-imaging-boofcv,adams-imaging-imagemagick,adams-imaging-openimaj,adams-jooq,adams-jython,adams-latex,adams-maps,adams-meka,adams-meka-webservice,adams-meta,adams-ml,adams-moa,adams-mongodb,adams-net,adams-nlp,adams-odf,adams-osm,adams-pdf,adams-phmm4weka,adams-python,adams-r,adams-random,adams-rats,adams-rest,adams-rsync,adams-spreadsheet,adams-timeseries,adams-twitter,adams-twitter-rats,adams-video,adams-visualstats,adams-webservice,adams-weka,adams-weka-webservice
+# Modules: adams-cntk,adams-compress,adams-core,adams-event,adams-imaging,adams-imaging-boofcv,adams-latex,adams-meta,adams-ml,adams-net,adams-pdf,adams-python,adams-random,adams-rats,adams-rest,adams-spreadsheet,adams-tensorflow,adams-visualstats,adams-webservice
 #
 adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListener -flow-restart-manager adams.flow.control.flowrestart.NullManager
  adams.flow.standalone.CallableActors
   adams.flow.sink.Display -display-type adams.flow.core.displaytype.Default -writer adams.data.io.output.NullWriter
+  adams.flow.control.SubProcess -name "Training time"
+   adams.flow.control.ContainerValuePicker -value msec -switch-outputs true
+   adams.flow.transformer.MathExpression -expression X/60000
+   adams.flow.transformer.SetVariable -var-name train_time
+ adams.flow.standalone.Events
+  adams.flow.standalone.Cron -schedule "*/20 * * * * ?"
+   adams.flow.source.Variable -var-name ready -conversion adams.data.conversion.StringToString
+   adams.flow.control.ConditionalSequence -name Ready? -condition "adams.flow.condition.bool.Expression -expression \"\\\\\\\"X\\\\\\\" = \\\\\\\"true\\\\\\\"\""
+    adams.flow.control.ConditionalTrigger -condition "adams.flow.condition.bool.Counting -max 20"
+     adams.flow.source.NewSpreadSheet -columns mem_usage -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
+     adams.flow.transformer.SpreadSheetInsertRow -after true
+     adams.flow.control.Trigger -name "get free mem"
+      adams.flow.source.Exec -stop-flow-on-error true -cmd "\\\"/usr/bin/nvidia-smi\\\"" -conversion adams.data.conversion.StringToString
+      adams.flow.transformer.StringSplit -expression \n
+      adams.flow.transformer.StringMatcher -regexp .*Default.*
+      adams.flow.transformer.GetArrayElement
+      adams.flow.transformer.StringCut -field-delimiter \\| -field-index 3
+      adams.flow.transformer.StringCut -name "StringCut (2)" -field-delimiter /
+      adams.flow.transformer.SimpleStringReplace -find kiB -replace 000
+      adams.flow.transformer.SimpleStringReplace -name "SimpleStringReplace (2)" -find MiB -replace 000000
+      adams.flow.transformer.SimpleStringReplace -name "SimpleStringReplace (3)" -find GiB -replace 000000000
+      adams.flow.transformer.StringTrim
+      adams.flow.transformer.SetVariable -var-name current_mem_usage
+     adams.flow.transformer.SpreadSheetSetCell -row last -col last -finder adams.data.spreadsheet.cellfinder.CellRange -value @{current_mem_usage}
+     adams.flow.transformer.SpreadSheetAppend -storage-name mem_usage
+     adams.flow.transformer.SetStorageValue -storage-name mem_usage
  adams.flow.standalone.SetVariable -var-name restore_file -var-value @{flow_filename_long}.props -expand-value true
+ adams.flow.standalone.SetVariable -name "SetVariable (2)" -var-name ready -var-value false -expand-value true
  adams.flow.source.Start
- adams.flow.control.Trigger -name "prompt user"
-  adams.flow.source.EnterManyValues -stop-if-canceled true -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name datasets_dir -display \"Datasets Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name output_dir -display \"Output Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name config_yaml -display \"Config Yaml File\" -help \"Configuration yaml file\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_exec -display \"Python Executable\" -help \"Python file to execute the train/test script\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_script_dir -display \"Detectron Script Directory\" -help \"Top level directroy of script for training and testing using Detectron\" -type DIRECTORY_ABSOLUTE -default-value ." -output-type MAP -restoration-enabled true -restoration-file @{restore_file}
-  adams.flow.transformer.MapToVariables
-  adams.flow.control.Trigger -name "Python Script"
-   adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
-   adams.flow.transformer.AppendName -suffix tools/train_net.py -use-forward-slashes true
-   adams.flow.transformer.SetVariable -var-name python_script
-  adams.flow.control.Trigger -name "Dataset Catalogue"
-   adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
-   adams.flow.transformer.AppendName -suffix detectron/datasets/dataset_catalog.py -use-forward-slashes true
-   adams.flow.transformer.SetVariable -var-name dataset_catalog
+ adams.flow.control.Trigger -name "Init mem usage sheet"
+  adams.flow.source.NewSpreadSheet -columns mem_usage -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
+  adams.flow.transformer.SetStorageValue -storage-name mem_usage
+ adams.flow.control.Trigger -name "Init training sheet"
+  adams.flow.source.NewSpreadSheet -columns dataset,config,train_images_num,actual_max_image_height,actual_max_image_width,config_max_image_height,config_max_image_width,train_time_min(minutes),train_time_median(minutes),train_time_max(minutes),steps,mem_usage_median(Bytes),notes -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
+  adams.flow.transformer.SpreadSheetInsertRow -after true
+  adams.flow.transformer.SetStorageValue -storage-name training
+ adams.flow.control.Trigger -name "Init training time sheet"
+  adams.flow.source.NewSpreadSheet -columns fold,time -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
+  adams.flow.transformer.SetStorageValue -storage-name train_time
+ adams.flow.control.Trigger -name parameters
+  adams.flow.source.SwitchedSource -name "user or yaml?" -condition "adams.flow.condition.bool.VariableFlagSet -variable-name has_gui" -condition "adams.flow.condition.bool.Not -condition \"adams.flow.condition.bool.VariableFlagSet -variable-name has_gui\""
+   adams.flow.source.SequenceSource -name "prompt user"
+    adams.flow.source.EnterManyValues -stop-if-canceled true -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name datasets_dir -display \"Datasets Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name output_dir -display \"Output Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name config_yaml -display \"Config Yaml File\" -help \"Configuration yaml file\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_exec -display \"Python Executable\" -help \"Python file to execute the train/test script\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_script_dir -display \"Detectron Script Directory\" -help \"Top level directroy of script for training and testing using Detectron\" -type DIRECTORY_ABSOLUTE -default-value ." -output-type MAP -restoration-enabled true -restoration-file @{restore_file}
+    adams.flow.transformer.MapToVariables
+   adams.flow.source.SequenceSource -name yaml
+    adams.flow.source.EnterValue -message "Enter path to the yaml file containing parameters values"
+    adams.flow.transformer.SetVariable -var-name ready -var-value true
+    adams.flow.transformer.YamlFileReader
+    adams.flow.transformer.MapToVariables
+ adams.flow.control.Trigger -name "mem usage file name"
+  adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.AppendName -suffix mem_usage.csv -use-forward-slashes true
+  adams.flow.transformer.SetVariable -var-name mem_usage_file_name
+ adams.flow.control.Trigger -name "training file name"
+  adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.AppendName -suffix training.csv -use-forward-slashes true
+  adams.flow.transformer.SetVariable -var-name training_file_name
+ adams.flow.control.Trigger -name "training time file name"
+  adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.AppendName -suffix training_time.csv -use-forward-slashes true
+  adams.flow.transformer.SetVariable -var-name training_time_file_name
+ adams.flow.control.Trigger -name "Python Script"
+  adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.AppendName -suffix tools/train_net.py -use-forward-slashes true
+  adams.flow.transformer.SetVariable -var-name python_script
+ adams.flow.control.Trigger -name "Dataset Catalogue"
+  adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.AppendName -suffix detectron/datasets/dataset_catalog.py -use-forward-slashes true
+  adams.flow.transformer.SetVariable -var-name dataset_catalog
  adams.flow.control.Trigger -name "Read Datasets Dir"
   adams.flow.standalone.PythonEnvironment -python-path-env-var /Scratch/habdelqa/detectron-venv/detectron -python-path-update-type REPLACE -python @{python_exec}
   adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalDirectorySearch -directory @{datasets_dir} -regexp .* -sorting SORT_BY_NAME" -use-forward-slashes true
@@ -27,6 +83,41 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
    adams.flow.transformer.SetVariable -name "Fold Directory" -var-name fold_dir
    adams.flow.transformer.BaseName
    adams.flow.transformer.SetVariable -var-name fold_num
+  adams.flow.control.Trigger -name "Get train images dir"
+   adams.flow.source.Variable -var-name fold_dir -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.AppendName -suffix train -use-forward-slashes true
+   adams.flow.transformer.SetVariable -var-name train_images_dir
+  adams.flow.control.Trigger -name "Count train images"
+   adams.flow.source.FileSystemSearch -output-array true -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{train_images_dir} -regexp .*\\\\.(jpg|png) -sorting SORT_BY_NAME"
+   adams.flow.transformer.ArrayLength
+   adams.flow.transformer.SetVariable -var-name train_images_num
+  adams.flow.control.Trigger -name "Get max image height"
+   adams.flow.standalone.SetVariable -name "SetVariable (2)" -var-name actual_max_image_height -var-value 0
+   adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{train_images_dir} -regexp .*\\\\.(jpg|png) -sorting SORT_BY_NAME"
+   adams.flow.transformer.ImageFileReader -reader adams.data.io.input.JAIImageReader -meta-data-reader adams.data.io.input.DefaultSimpleReportReader
+   adams.flow.transformer.ImageInfo -type HEIGHT
+   adams.flow.transformer.SetVariable -var-name current_image_height
+   adams.flow.control.ConditionalTee -condition "adams.flow.condition.bool.Expression -expression @{current_image_height}>@{actual_max_image_height}"
+    adams.flow.transformer.SetVariable -var-name actual_max_image_height
+  adams.flow.control.Trigger -name "Get max image width"
+   adams.flow.standalone.SetVariable -name "SetVariable (2)" -var-name actual_max_image_width -var-value 0
+   adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{train_images_dir} -regexp .*\\\\.(jpg|png) -sorting SORT_BY_NAME"
+   adams.flow.transformer.ImageFileReader -reader adams.data.io.input.JAIImageReader -meta-data-reader adams.data.io.input.DefaultSimpleReportReader
+   adams.flow.transformer.ImageInfo
+   adams.flow.transformer.SetVariable -var-name current_image_width
+   adams.flow.control.ConditionalTee -condition "adams.flow.condition.bool.Expression -expression @{current_image_width}>@{actual_max_image_width}"
+    adams.flow.transformer.SetVariable -var-name actual_max_image_width
+  adams.flow.control.Trigger -name "Get steps and image max size"
+   adams.flow.source.Variable -var-name config_yaml -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.YamlFileReader
+   adams.flow.control.Tee -name "Get steps"
+    adams.flow.transformer.GetMapValue -key SOLVER
+    adams.flow.transformer.GetMapValue -name "GetMapValue (2)" -key MAX_ITER
+    adams.flow.transformer.SetVariable -var-name steps
+   adams.flow.control.Tee -name "Get image max size"
+    adams.flow.transformer.GetMapValue -key TRAIN
+    adams.flow.transformer.GetMapValue -name "GetMapValue (2)" -key MAX_SIZE
+    adams.flow.transformer.SetVariable -var-name max_size
   adams.flow.control.Trigger -name "Update Dataset Catalogue"
    adams.flow.source.Variable -var-name dataset_catalog -conversion adams.data.conversion.StringToString
    adams.flow.transformer.TextFileReader -reader adams.data.io.input.LineArrayTextReader
@@ -60,6 +151,63 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
    adams.flow.source.Variable -var-name train_template -conversion adams.data.conversion.StringToString
    adams.flow.transformer.ExpandVariables
    adams.flow.transformer.SetVariable -var-name train_options
-  adams.flow.control.Trigger -name "Execute Python (Train)"
+  adams.flow.control.TimedTrigger -name "Execute Python (Train)" -callable "Training time"
    adams.flow.source.PythonExec -output-type BOTH -prefix-stdout [OUT] -prefix-stderr [ERR] -script @{python_script} -script-options @{train_options}
    adams.flow.sink.CallableSink -callable Display
+  adams.flow.control.Trigger -name "Set training time"
+   adams.flow.source.NewSpreadSheet -columns fold,time -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
+   adams.flow.transformer.SpreadSheetInsertRow -after true
+   adams.flow.transformer.SpreadSheetSetCell -row last -col fold -finder adams.data.spreadsheet.cellfinder.CellRange -value @{fold_num}
+   adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (2)" -row last -col time -finder adams.data.spreadsheet.cellfinder.CellRange -value @{train_time}
+   adams.flow.transformer.SpreadSheetAppend -storage-name train_time
+   adams.flow.transformer.SetStorageValue -storage-name train_time
+  adams.flow.control.TriggerOnce -name "Dump mem usage sheet to file"
+   adams.flow.source.StorageValue -storage-name mem_usage -conversion adams.data.conversion.UnknownToUnknown
+   adams.flow.transformer.SetVariable -var-name ready -var-value false
+   adams.flow.sink.DumpFile -output @{mem_usage_file_name}
+  adams.flow.control.TriggerOnce -name "Get mem usage median"
+   adams.flow.source.StorageValue -storage-name mem_usage -conversion adams.data.conversion.UnknownToUnknown
+   adams.flow.transformer.SpreadSheetColumnStatistic -column last -statistic adams.data.spreadsheet.colstatistic.Median
+   adams.flow.transformer.SpreadSheetGetCell -row last -col last
+   adams.flow.transformer.SetVariable -var-name mem_usage_median
+ adams.flow.control.Trigger -name "Get training times stats and dump training time sheet to file"
+  adams.flow.source.StorageValue -storage-name train_time -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.control.Tee -name "Get min"
+   adams.flow.transformer.SpreadSheetColumnStatistic -column last -statistic adams.data.spreadsheet.colstatistic.Min
+   adams.flow.transformer.SpreadSheetGetCell -row last -col last
+   adams.flow.transformer.SetVariable -var-name train_time_min
+  adams.flow.control.Tee -name "Get max"
+   adams.flow.transformer.SpreadSheetColumnStatistic -column last -statistic adams.data.spreadsheet.colstatistic.Max
+   adams.flow.transformer.SpreadSheetGetCell -row last -col last
+   adams.flow.transformer.SetVariable -var-name train_time_max
+  adams.flow.control.Tee -name "Get median"
+   adams.flow.transformer.SpreadSheetColumnStatistic -column last -statistic adams.data.spreadsheet.colstatistic.Median
+   adams.flow.transformer.SpreadSheetGetCell -row last -col last
+   adams.flow.transformer.SetVariable -var-name train_time_median
+  adams.flow.sink.DumpFile -output @{training_time_file_name}
+ adams.flow.control.Trigger -name "Update training sheet"
+  adams.flow.source.StorageValue -storage-name training -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.transformer.SpreadSheetSetCell -row last -col mem_usage_median(Bytes) -finder adams.data.spreadsheet.cellfinder.CellRange -value @{mem_usage_median}
+  adams.flow.control.Trigger -name "Get dataset"
+   adams.flow.source.Variable -var-name datasets_dir -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.BaseName
+   adams.flow.transformer.SetVariable -var-name dataset
+  adams.flow.control.Trigger -name "Get config"
+   adams.flow.source.Variable -var-name config_yaml -conversion adams.data.conversion.StringToString
+   adams.flow.transformer.BaseName -remove-extensions true
+   adams.flow.transformer.SetVariable -var-name config
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (2)" -row last -col dataset -finder adams.data.spreadsheet.cellfinder.CellRange -value @{dataset}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (3)" -row last -col config -finder adams.data.spreadsheet.cellfinder.CellRange -value @{config}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (4)" -row last -col train_images_num -finder adams.data.spreadsheet.cellfinder.CellRange -value @{train_images_num}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (5)" -row last -col actual_max_image_height -finder adams.data.spreadsheet.cellfinder.CellRange -value @{actual_max_image_height}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (6)" -row last -col actual_max_image_width -finder adams.data.spreadsheet.cellfinder.CellRange -value @{actual_max_image_width}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (7)" -row last -col steps -finder adams.data.spreadsheet.cellfinder.CellRange -value @{steps}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (8)" -row last -col train_time_min(minutes) -finder adams.data.spreadsheet.cellfinder.CellRange -value @{train_time_min}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (9)" -row last -col train_time_max(minutes) -finder adams.data.spreadsheet.cellfinder.CellRange -value @{train_time_max}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (10)" -row last -col train_time_median(minutes) -finder adams.data.spreadsheet.cellfinder.CellRange -value @{train_time_median}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (11)" -row last -col config_max_image_height -finder adams.data.spreadsheet.cellfinder.CellRange -value @{max_size}
+  adams.flow.transformer.SpreadSheetSetCell -name "SpreadSheetSetCell (12)" -row last -col config_max_image_width -finder adams.data.spreadsheet.cellfinder.CellRange -value @{max_size}
+  adams.flow.transformer.SetStorageValue -storage-name training
+ adams.flow.control.Trigger -name "Dump training sheet to file"
+  adams.flow.source.StorageValue -storage-name training -conversion adams.data.conversion.UnknownToUnknown
+  adams.flow.sink.DumpFile -output @{training_file_name}
