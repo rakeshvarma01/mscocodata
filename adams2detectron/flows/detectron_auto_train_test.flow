@@ -1,5 +1,5 @@
 # Project: adams
-# Date: 2019-01-24 12:27:17
+# Date: 2019-01-30 10:19:39
 # User: habdelqa
 # Charset: UTF-8
 # Modules: adams-cntk,adams-compress,adams-core,adams-event,adams-imaging,adams-imaging-boofcv,adams-latex,adams-meta,adams-ml,adams-net,adams-pdf,adams-python,adams-random,adams-rats,adams-rest,adams-spreadsheet,adams-tensorflow,adams-visualstats,adams-webservice
@@ -68,6 +68,10 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
   adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
   adams.flow.transformer.AppendName -suffix training_time.csv -use-forward-slashes true
   adams.flow.transformer.SetVariable -var-name training_time_file_name
+ adams.flow.control.Trigger -name "training log file name"
+  adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.AppendName -suffix log.txt -use-forward-slashes true
+  adams.flow.transformer.SetVariable -var-name training_log_file_name
  adams.flow.control.Trigger -name "Python Script"
   adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
   adams.flow.transformer.AppendName -suffix tools/train_net.py -use-forward-slashes true
@@ -153,6 +157,8 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
    adams.flow.transformer.SetVariable -var-name train_options
   adams.flow.control.TimedTrigger -name "Execute Python (Train)" -callable "Training time"
    adams.flow.source.PythonExec -output-type BOTH -prefix-stdout [OUT] -prefix-stderr [ERR] -script @{python_script} -script-options @{train_options}
+   adams.flow.control.Tee -name "dump to log file"
+    adams.flow.sink.DumpFile -output @{training_log_file_name} -append true
    adams.flow.sink.CallableSink -callable Display
   adams.flow.control.Trigger -name "Set training time"
    adams.flow.source.NewSpreadSheet -columns fold,time -data-row-type adams.data.spreadsheet.DenseDataRow -spreadsheet-type adams.data.spreadsheet.DefaultSpreadSheet
