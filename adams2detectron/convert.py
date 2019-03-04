@@ -163,13 +163,13 @@ def add_annotations(annotations, report_files, mappings=None, labels=None, polyg
 def convert(input_dir, input_files, output_file, mappings=None, regexp=None, labels=None, polygon=False,
             pretty_print=False, verbose=False):
     """
-    Converts the images and annotations (.report) files into TFRecords.
+    Converts the images and annotations (.report) files into MS COCO JSON.
 
     :param input_dir: the input directory (PNG/JPG, .report)
     :type input_dir: str
     :param input_files: the file containing the report files to use
     :type input_files: str
-    :param output_file: the output file for TFRecords
+    :param output_file: the output file for MS COCO JSON
     :type output_file: str
     :param mappings: the label mappings for replacing labels (key: old label, value: new label)
     :type mappings: dict
@@ -234,7 +234,7 @@ def convert(input_dir, input_files, output_file, mappings=None, regexp=None, lab
     coco['images'] = list()
     coco['annotations'] = list()
     add_images(coco['images'], report_files, verbose=verbose)
-    add_annotations(coco['annotations'], report_files, labels=label_indices, polygon=polygon, verbose=verbose)
+    add_annotations(coco['annotations'], report_files, mappings=mappings, labels=label_indices, polygon=polygon, verbose=verbose)
 
     # save to file
     with open(output_file, 'w') as outfile:
@@ -308,6 +308,7 @@ def main(args):
         for m in parsed.mapping:
             old, new = m.split("=")
             mappings[old] = new
+        logger.info("mappings: " + str(mappings))
 
     # predefined labels?
     labels = None

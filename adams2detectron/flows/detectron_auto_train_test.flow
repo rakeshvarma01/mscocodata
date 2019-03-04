@@ -1,5 +1,5 @@
 # Project: adams
-# Date: 2019-01-30 10:19:39
+# Date: 2019-02-26 15:48:40
 # User: habdelqa
 # Charset: UTF-8
 # Modules: adams-cntk,adams-compress,adams-core,adams-event,adams-imaging,adams-imaging-boofcv,adams-latex,adams-meta,adams-ml,adams-net,adams-pdf,adams-python,adams-random,adams-rats,adams-rest,adams-spreadsheet,adams-tensorflow,adams-visualstats,adams-webservice
@@ -81,7 +81,7 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
   adams.flow.transformer.AppendName -suffix detectron/datasets/dataset_catalog.py -use-forward-slashes true
   adams.flow.transformer.SetVariable -var-name dataset_catalog
  adams.flow.control.Trigger -name "Read Datasets Dir"
-  adams.flow.standalone.PythonEnvironment -python-path-env-var /Scratch/habdelqa/detectron-venv/detectron -python-path-update-type REPLACE -python @{python_exec}
+  adams.flow.standalone.PythonEnvironment -python-path-env-var @{python_script_dir} -python-path-update-type REPLACE -python @{python_exec}
   adams.flow.source.FileSystemSearch -search "adams.flow.source.filesystemsearch.LocalDirectorySearch -directory @{datasets_dir} -regexp .* -sorting SORT_BY_NAME" -use-forward-slashes true
   adams.flow.control.Tee -name "Fold Dir"
    adams.flow.transformer.SetVariable -name "Fold Directory" -var-name fold_dir

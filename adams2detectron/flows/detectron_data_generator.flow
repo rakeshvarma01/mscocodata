@@ -1,5 +1,5 @@
 # Project: adams
-# Date: 2019-01-08 12:43:13
+# Date: 2019-03-04 16:08:53
 # User: habdelqa
 # Charset: UTF-8
 # Modules: adams-cntk,adams-compress,adams-core,adams-event,adams-imaging,adams-imaging-boofcv,adams-latex,adams-meta,adams-ml,adams-net,adams-pdf,adams-python,adams-random,adams-rats,adams-rest,adams-spreadsheet,adams-tensorflow,adams-visualstats,adams-webservice
@@ -19,9 +19,11 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
     adams.flow.source.Variable -var-name report_file -conversion adams.data.conversion.StringToString
     adams.flow.transformer.CopyFile -target-dir @{target_dir}
  adams.flow.standalone.SetVariable -var-name restore_file -var-value @{flow_filename_long}.props -expand-value true
+ adams.flow.standalone.SetVariable -name "SetVariable (2)" -var-name labels_option -var-value ""
+ adams.flow.standalone.SetVariable -name "SetVariable (3)" -var-name mappings_option -var-value ""
  adams.flow.source.Start
  adams.flow.control.Trigger -name "prompt user"
-  adams.flow.source.EnterManyValues -stop-if-canceled true -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name image_dir -display \"Image Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name output_dir -display \"Output Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_folds -display \"Number of Folds\" -help \"less than 2 will perform leave one out CV\" -type INTEGER -default-value 10" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_rows -display \"Number of Rows\" -help \"number of rows to split image in\" -type INTEGER -default-value 3" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_cols -display \"Number of Columns\" -help \"number of columns to split image in\" -type INTEGER -default-value 3" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name overlap -display \"Overlap in Pixels\" -help \"How many pixels to overlap?\" -type INTEGER -default-value 50" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_exec -display \"Python Executable\" -help \"Python executable to use for executing the mscoco script\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_script_dir -display \"MSCOCO Script Directory\" -help \"Top level directroy of script for converting ADAMS reports to json\" -type DIRECTORY_ABSOLUTE -default-value ." -output-type MAP -restoration-enabled true -restoration-file @{restore_file}
+  adams.flow.source.EnterManyValues -stop-if-canceled true -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name image_dir -display \"Image Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name output_dir -display \"Output Directory\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_folds -display \"Number of Folds\" -help \"less than 2 will perform leave one out CV\" -type INTEGER -default-value 10" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_rows -display \"Number of Rows\" -help \"number of rows to split image in\" -type INTEGER -default-value 3" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name num_cols -display \"Number of Columns\" -help \"number of columns to split image in\" -type INTEGER -default-value 3" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name overlap -display \"Overlap in Pixels\" -help \"How many pixels to overlap?\" -type INTEGER -default-value 50" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_exec -display \"Python Executable\" -help \"Python executable to use for executing the mscoco script\" -type FILE_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name python_script_dir -display \"MSCOCO Script Directory\" -help \"Top level directroy of script for converting ADAMS reports to json\" -type DIRECTORY_ABSOLUTE -default-value ." -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name mappings -display \"Mappings provided\" -type BOOLEAN -default-value false" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name mappings_txt -display \"Mappings txt file\" -type FILE_ABSOLUTE -use-forward-slashes true" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name labels -display \"Labels provided\" -type BOOLEAN -default-value false" -value "adams.flow.source.valuedefinition.DefaultValueDefinition -name labels_txt -display \"Labels txt file\" -type FILE_ABSOLUTE -use-forward-slashes true" -output-type MAP -restoration-enabled true -restoration-file @{restore_file}
   adams.flow.transformer.MapToVariables
   adams.flow.control.Trigger -name "split dir"
    adams.flow.source.Variable -var-name output_dir -conversion adams.data.conversion.StringToString
@@ -35,7 +37,7 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
    adams.flow.transformer.SetVariable -var-name datasets_dir
   adams.flow.control.Trigger -name "Python Script"
    adams.flow.source.Variable -var-name python_script_dir -conversion adams.data.conversion.StringToString
-   adams.flow.transformer.AppendName -suffix adams/convert_detectron.py -use-forward-slashes true
+   adams.flow.transformer.AppendName -suffix adams2detectron/convert.py -use-forward-slashes true
    adams.flow.transformer.SetVariable -var-name python_script
  adams.flow.control.Trigger -name "Init Split Dir"
   adams.flow.source.Variable -var-name split_dir -conversion adams.data.conversion.StringToString
@@ -82,11 +84,21 @@ adams.flow.control.Flow -flow-execution-listener adams.flow.execution.NullListen
    adams.flow.sink.ImageFileWriter -output @{imgoutfile} -writer adams.data.io.output.JAIImageWriter
   adams.flow.control.Tee -name "save report"
    adams.flow.transformer.ReportFileWriter -writer adams.data.io.output.DefaultSimpleReportWriter -generator "adams.core.io.SimpleFixedFilenameGenerator -name @{reportoutfile}"
+ adams.flow.control.ConditionalTrigger -name "Provided labels?" -condition "adams.flow.condition.bool.Expression -expression @{labels}=true"
+  adams.flow.source.Variable -var-name labels_txt -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.TextFileReader -reader adams.data.io.input.SingleStringTextReader
+  adams.flow.transformer.SetVariable -var-name labels_arg
+  adams.flow.transformer.SetVariable -name "SetVariable (2)" -var-name labels_option -var-value "-l @{labels_arg}" -expand-value true
+ adams.flow.control.ConditionalTrigger -name "Provided mappings?" -condition "adams.flow.condition.bool.Expression -expression @{mappings}=true"
+  adams.flow.source.Variable -var-name mappings_txt -conversion adams.data.conversion.StringToString
+  adams.flow.transformer.TextFileReader -reader adams.data.io.input.LineByLineTextReader
+  adams.flow.transformer.SetVariable -var-name mappings_arg
+  adams.flow.transformer.SetVariable -name "SetVariable (2)" -var-name mappings_option -var-value "-m @{mappings_arg} " -update-type APPEND -expand-value true
  adams.flow.control.Trigger -name "Generate Datasets"
   adams.flow.standalone.PythonEnvironment -python-path-env-var C:\\Users\\habdelqa\\Projects\\mscocodata -python-path-update-type REPLACE -python ${HOME}\Projects\mscocodata\venv\Scripts\python.exe
   adams.flow.standalone.SetVariable -name "init fold" -var-name fold -var-value 0
-  adams.flow.standalone.SetVariable -name "train template" -var-name train_template -var-value "-i \\\"@{datasets_dir}/@{fold}/train\\\" -o \\\"@{datasets_dir}/@{fold}/annotations/annotations.json\\\""
-  adams.flow.standalone.SetVariable -name "test template" -var-name test_template -var-value "-i \\\"@{datasets_dir}/@{fold}/val\\\" -o \\\"@{datasets_dir}/@{fold}/val/annotations.json\\\""
+  adams.flow.standalone.SetVariable -name "train template" -var-name train_template -var-value "-i \\\"@{datasets_dir}/@{fold}/train\\\" -o \\\"@{datasets_dir}/@{fold}/annotations/annotations.json\\\" @{labels_option} @{mappings_option}"
+  adams.flow.standalone.SetVariable -name "test template" -var-name test_template -var-value "-i \\\"@{datasets_dir}/@{fold}/val\\\" -o \\\"@{datasets_dir}/@{fold}/val/annotations.json\\\" @{labels_option} @{mappings_option}"
   adams.flow.source.FileSystemSearch -output-array true -search "adams.flow.source.filesystemsearch.LocalFileSearch -directory @{split_dir} -regexp .*\\\\.png -sorting SORT_BY_NAME" -use-forward-slashes true
   adams.flow.transformer.PrepareFileBasedDataset -preparation "adams.flow.transformer.preparefilebaseddataset.CrossValidation -num-folds @{num_folds}"
   adams.flow.transformer.IncVariable -var-name fold
