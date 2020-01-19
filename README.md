@@ -1,3 +1,8 @@
+# OBSOLETE
+This code has been superceded by the much more comprehensive 
+[wai.annotations](https://github.com/waikato-datamining/wai-annotations/) 
+library.
+
 # mscocodata
 Scripts for converting annotations into MS COCO JSON format.
 
